@@ -1,81 +1,92 @@
 import React, { useEffect, useState } from 'react';
 import useForm from '../../hooks/Form';
-import { useSettingsContext } from '../../Context/Settings/SettingsContext.jsx';
+import { useSettingsContext } from '../../Context/Settings/SettingsContext';
 import { v4 as uuid } from 'uuid';
 import { Pagination } from '@mantine/core';
-import List from '../List/List.jsx';
+import List from '../List/List';
+import PaginationComponent from '../PaginationComponent/pagination';
 import './todo.scss';
 
 const ToDo = () => {
-  const { numOfItem, hideTheCompleted } = useSettingsContext();
-
   const [defaultValues] = useState({
     difficulty: 4,
   });
+
+  const { settings } = useSettingsContext();
   const [list, setList] = useState([]);
   const [incomplete, setIncomplete] = useState([]);
-  const { handleChange, handleSubmit } = useForm(addItem, defaultValues);
+  const [formData, setFormData] = useState({});
+  const { handleChange, handleSubmit, values } = useForm(addItem, defaultValues);
   const [currentPage, setCurrentPage] = useState(1);
-
-  function addItem(item) {
-    item.id = uuid();
-    item.complete = false;
-    console.log(item);
-    setList([...list, item]);
-  }
-
-  function deleteItem(id) {
-    const items = list.filter(item => item.id !== id);
-    setList(items);
-  }
-
-  function toggleComplete(id) {
-
-    const items = list.map(item => {
-      if (item.id == id) {
-        item.complete = !item.complete;
-      }
-      return item;
-    });
-
-    setList(items);
-
-  }
 
   useEffect(() => {
     let incompleteCount = list.filter(item => !item.complete).length;
     setIncomplete(incompleteCount);
-    document.title = `To Do List: ${incomplete}`;
-  }, [list]);
+    document.title = `To Do List: ${incomplete} items pending`;
+    localStorage.setItem('todoList', JSON.stringify(list));
+  }, [list, incomplete]);
 
+  useEffect(() => {
+    const storedList = localStorage.getItem('todoList');
+    if (storedList) {
+      setList(JSON.parse(storedList));
+    }
+    const storedFormData = localStorage.getItem('formData');
+    if (storedFormData) {
+      setFormData(JSON.parse(storedFormData));
+    }
+  }, []);
 
-  const filteredList = hideTheCompleted
-    ? list.filter((item) => !item.complete)
-    : list;
+  function addItem(item) {
+    const isDuplicate = list.some(existingItem => existingItem.text === item.text && existingItem.assignee === item.assignee);
 
+    if (!isDuplicate) {
+      item.id = uuid();
+      item.complete = false;
+      const updatedList = [...list, item];
+      setList([...list, item]);
+      localStorage.setItem('todoList', JSON.stringify(updatedList));
 
-  const paginatedList = filteredList.slice(
-    (currentPage - 1) * numOfItem,
-    currentPage * numOfItem
-  );
+    }
+  }
 
+  function toggleComplete(id) {
+    const items = list.map(item => {
+      if (item.id === id) {
+        item.complete = !item.complete;
+      }
+      return item;
+    });
+    setList(items);
+  }
 
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const filteredList = settings.hideTheCompleted
+    ? list
+    : list.filter((item) => !item.complete);
+
+  const startIndex = (currentPage - 1) * settings.numOfItem;
+  const endIndex = startIndex + settings.numOfItem;
+  const paginatedList = filteredList.slice(startIndex, endIndex);
 
   return (
     <>
-      {/* <header>
-      </header> */}
-        <div className="hed">
+      <div className="ToDo" onSubmit={handleSubmit}>
+        <h1>To Do List: {incomplete} items pending</h1>
 
-          <h1 >To Do List: {incomplete} items pending</h1>
-        </div>
-        <div className="con">
+        <form className='for'>
+          <h1>Add To Do Item</h1>
+          <input onChange={handleChange} name="text" type="text" placeholder="Item Details" />
+          <input onChange={handleChange} name="assignee" type="text" placeholder="Assignee Name" />
+          <input onChange={handleChange} defaultValue={defaultValues.difficulty} type="range" min={1} max={5} name="difficulty" />
+          <button type="submit">Add Item</button>
 
+        </form>
 
-      <div className="ToDo">
-
-        <form onSubmit={handleSubmit}>
-
+        {/* <form onSubmit={handleSubmit}>
           <h2>Add To Do Item</h2>
 
           <label>
@@ -96,35 +107,47 @@ const ToDo = () => {
           <label>
             <button type="submit">Add Item</button>
           </label>
-        </form>
-</div>
-<div className="list-container">
+        </form> */}
+
+
+
+
+
+
+
 
         <List items={paginatedList} toggleComplete={toggleComplete} />
 
-
-        {/* {list.map(item => (
-        <div key={item.id}>
-          <p>{item.text}</p>
-          <p><small>Assigned to: {item.assignee}</small></p>
-          <p><small>Difficulty: {item.difficulty}</small></p>
-          <div onClick={() => toggleComplete(item.id)}>Complete: {item.complete.toString()}</div>
-          <hr />
-        </div>
-      ))} */}
-        {list.length > numOfItem && (
-          <Pagination
-            itemsPerPage={numOfItem}
-            total={filteredList.length}
-            page={currentPage}
-            onChange={(newPage) => setCurrentPage(newPage)}
-            withPagesCount
-            className="custom-pagination"
+        {list.length > settings.numOfItem && (
+          <PaginationComponent
+            currentPage={currentPage}
+            totalItems={filteredList.length}
+            itemsPerPage={settings.numOfItem}
+            onPageChange={handlePageChange}
           />
         )}
-      </div>
-        </div>
 
+      </div>
+
+
+      <div className='dett'>
+
+
+        <form >
+
+
+          <h2>Updated Settings</h2>
+          <p>Items per page: {settings.numOfItem}</p>
+          <p>Show completed items: {settings.hideTheCompleted ? 'yes' : 'no'}</p>
+
+        </form>
+      </div>
+
+
+      {/* <div>
+        <p>Items per page: {settings.numOfItem}</p>
+        <p>Show completed items: {settings.hideTheCompleted ? 'yes' : 'no'}</p>
+      </div> */}
     </>
   );
 };
